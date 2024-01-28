@@ -1,3 +1,4 @@
+use rand::random;
 pub const SCREEN_WIDTH: usize = 64;
 pub const SCREEN_HEIGHT: usize = 32;
 
@@ -120,7 +121,132 @@ impl Emu {
         let digit4 = op & 0x000F;
 
         match (digit1, digit2, digit3, digit4) {
-            
+            (0,0,0,0) => return,
+            (0,0,0xE,0) => {
+                self.screen = [false; SCREEN_HEIGHT * SCREEN_WIDTH];
+            }
+            (0,0,0xE, 0xE) => {
+                let ret_addr = self.pop();
+                self.pc = ret_addr;
+            }
+            (1, _, _, _) => {
+                let nnn = op & 0xFFF;
+                self.pc = nnn;
+            }
+            (2, _, _, _) => { // call subroutine
+                let nnn = op & 0xFFF;
+                self.push(self.pc);
+                self.pc = nnn;
+            }
+            (3, _ ,_ , _ ) => { // skip if VX == nn;
+                let x = digit2 as usize;
+                let nn = (op & 0xFF) as u8;
+                if self.v_reg[x] == nn {
+                    self.pc += 2;
+                }
+            }
+            (4, _ ,_ , _ ) => { // skip if VX == nn;
+                let x = digit2 as usize;
+                let nn = (op & 0xFF) as u8;
+                if self.v_reg[x] != nn {
+                    self.pc += 2;
+                }
+            }
+            (5, _, _, _) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                if self.v_reg[x] == self.v_reg[y] {
+                    self.pc += 2;
+                }
+            }
+            (6, _, _ , _ ) => {
+                let x = digit2 as usize;
+                let nn =   (op & 0xFF) as u8;
+                self.v_reg[x] = nn;
+            }
+            (7, _, _, _) => {
+                let x = digit2 as usize;
+                let nn = (op & 0xFF) as u8;
+                self.v_reg[x] = self.v_reg[x].wrapping_add(nn);
+            }
+            (8, _, _, 1) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                self.v_reg[x] |= self.v_reg[y];
+            }
+            (8, _, _, 2) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                self.v_reg[x] &= self.v_reg[y];
+            }
+            (8, _, _, 3) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                self.v_reg[x] ^= self.v_reg[y];
+            }
+            (8, _, _, 4) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                let (new_vx, carry ) = self.v_reg[x].overflowing_add(self.v_reg[y]);
+                let new_vf = if carry {1} else {0};
+                self.v_reg[x] = new_vx;
+                self.v_reg[0xF] = new_vf;
+            }
+            (8, _, _, 5) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                let (new_vx, borrow ) = self.v_reg[x].overflowing_sub(self.v_reg[y]);
+                let new_vf = if borrow {0} else {1};
+                self.v_reg[x] = new_vx;
+                self.v_reg[0xF] = new_vf;
+            }
+            (8, _, _, 6) => {
+                let x = digit2 as usize;
+                let lsb = self.v_reg[x] & 1;
+                self.v_reg[x] >>= 1;
+                self.v_reg[0xF] = lsb;
+            }
+            (8, _, _, 7) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                let (new_vx, borrow ) = self.v_reg[y].overflowing_sub(self.v_reg[x]);
+                let new_vf = if borrow {0} else {1};
+                self.v_reg[x] = new_vx;
+                self.v_reg[0xF] = new_vf;
+            }
+            (8, _, _, 0xE) => {
+                let x = digit2 as usize;
+                let msb = (self.v_reg[x] >> 7) & 1;
+                self.v_reg[x] <<= 1;
+                self.v_reg[0xF] = msb;
+            }
+            (8, _, _, _) => { // VX = VY
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                self.v_reg[x] = self.v_reg[y];
+            }
+            (9, _, _, 0) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                if self.v_reg[x] != self.v_reg[y] {
+                    self.pc += 2;
+                }
+            }
+            (0xA, _, _, _) => {
+                let nnn = op & 0xFFF;
+                self.i_reg = nnn;
+            }
+            (0xB, _, _, _) => {
+                let nnn = op & 0xFFF;
+                self.pc = (self.v_reg[0] as u16) + nnn;
+            }
+            (0xC, _, _, _) => {
+                let x = digit2 as usize;
+                let nn = (op & 0xFF) as u8;
+                let rng: u8 = random();
+                self.v_reg[x] = rng & nn;
+            }
+            // continue from draw sprite opcode.....
             (_,_,_,_) => unimplemented!("Unimplementer for op code ! {}", op)
         }
     }
