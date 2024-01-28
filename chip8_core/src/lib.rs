@@ -45,7 +45,7 @@ pub struct Emu {
 // chip8 emulators require ROM files to be read into RAM after an offese of 521 bytes (0x200)
 const START_ADDR: u16 = 0x200;
 impl Emu {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let mut new_emu = Self {
             pc: START_ADDR,
             ram: [0; RAM_SIZE],
@@ -114,7 +114,7 @@ impl Emu {
         }
     }
 
-    fn execute(&mut self, op: u16) {
+    fn execute(&mut self, op: u16){
         let digit1 = (op & 0xF000) >> 12;
         let digit2 = (op & 0x0F00) >> 8;
         let digit3 = (op & 0x00F0) >> 4;
@@ -246,9 +246,125 @@ impl Emu {
                 let rng: u8 = random();
                 self.v_reg[x] = rng & nn;
             }
+            (0xD, _, _, _) => { // Draw pixel on screen further need to understand this.
+                let x_coord = self.v_reg[digit2 as usize] as u16 ;
+                let y_coord = self.v_reg[digit3 as usize] as u16;
+                let num_rows = digit4;
+
+                let mut flipped = false;
+
+                for y_line in 0..num_rows {
+                    let addr = self.i_reg + y_line as u16;
+                    let pixels = self.ram[addr as usize];
+                    for x_line in 0..8 {
+                        if (pixels & (0b1000_0000 >> x_line)) != 0 {
+                            let x = (x_coord + x_line) as usize % SCREEN_WIDTH;
+                            let y = (y_coord + y_line) as usize % SCREEN_HEIGHT;
+                            let idx = x + SCREEN_WIDTH * y;
+                            flipped |= self.screen[idx];
+                            self.screen[idx] ^= true;
+                        } 
+
+                    }
+                }
+                if flipped {
+                    self.v_reg[0xF] = 1;
+                } else {
+                    self.v_reg[0xF] = 0;
+                }
+            }
+            (0xE, _, 9, 0xE) => {
+                let x = digit2 as usize;
+                let vx = self.v_reg[x];
+                let key = self.keys[vx as usize];
+                if key {
+                    self.pc  += 2;
+                }
+            }
+            (0xE, _, 0xA, 1) => {
+                let x = digit2 as usize;
+                let vx = self.v_reg[x];
+                let key = self.keys[vx as usize];
+                if !key {
+                    self.pc += 2;
+                }
+            }
+            (0xF, _ ,0, 7) => {
+                let x = digit2 as usize;
+                self.v_reg[x] = self.dt;
+            }
+            (0xF, _, 0, 0xA) => {
+                let x = digit2 as usize;
+                let mut pressed = false;
+                for i in 0..self.keys.len() {
+                    if self.keys[i] {
+                        self.v_reg[x] = i as u8;
+                        pressed = true;
+                        break;
+                    }
+                }
+                if !pressed { 
+                    self.pc -= 2; // looping so that game is blocked.
+                }
+            }
+            (0xF, _, 1, 5) => {
+                let x = digit2 as usize;
+                self.dt = self.v_reg[x];
+            }
+            (0xF, _, 1, 8) => {
+                let x = digit2 as usize;
+                self.st = self.v_reg[x];
+            }
+            (0xF, _, 1, 0xE) => {
+                let x = digit2 as usize;
+                let vx = self.v_reg[x] as u16;
+                self.i_reg = self.i_reg.wrapping_add(vx);
+            }
+            (0xF, _, 2, 9) => {
+                let x = digit2 as usize;
+                let c = self.v_reg[x] as u16;
+                self.i_reg = c*5;
+            }
+            (0xF, _, 3, 3) => { // BCD optimization can be imporved
+                let x = digit2 as usize;
+                let vx = self.v_reg[x] as f32;
+
+                let hundreds = (vx/ 100.0).floor() as u8;
+                let tens = ((vx / 10.0) % 10.0).floor() as u8;
+                let ones = (vx %10.0) as u8;
+
+                self.ram[self.i_reg as usize] = hundreds;
+                self.ram[(self.i_reg + 1) as usize] = tens;
+                self.ram[(self.i_reg + 2) as usize] = ones;
+            }
+            (0xF, _ ,5 , 5) => {
+                let x = digit2 as usize;
+                let i = self.i_reg as usize;
+                for idx in 0..=x {
+                    self.ram[i + idx] = self.v_reg[idx];
+                }
+            }
+            (0xF, _ ,6 , 5) => {
+                let x = digit2 as usize;
+                let i = self.i_reg as usize;
+                for idx in 0..=x {
+                    self.v_reg[idx] = self.ram[i + idx];
+                }
+            }
             // continue from draw sprite opcode.....
-            (_,_,_,_) => unimplemented!("Unimplementer for op code ! {}", op)
+            (_,_,_,_) => unimplemented!("Unimplemented for op code ! {}", op)
         }
+    }
+    pub fn get_display(&self) -> &[bool] {
+        &self.screen
+    }
+    pub fn keypress(&mut self, idx: usize, pressed: bool) {
+        self.keys[idx] = pressed;
+    }
+    pub fn load(&mut self, data: &[u8]) {
+        let start = START_ADDR as usize;
+        let end = (START_ADDR as usize)  + data.len();
+        self.ram[start..end].copy_from_slice(data);
     }
 
 }
