@@ -1,5 +1,5 @@
 # Chip8 emulator
-chip8 emulators are simple virtual machines that can run a variety of games. This repo contains the backend(chip8_core) and two frontends(one to run the emulator on desktop usinf sdl2 library and other a wasm app to run on browsers).
+chip8 emulators are simple virtual machines that can run a variety of games. This repo contains the backend(chip8_core) and two frontends(one to run the emulator on desktop using sdl2 library and A WASM app to run on browsers)
 
 ---
 ### References
