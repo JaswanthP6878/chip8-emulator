@@ -4,4 +4,3 @@ chip8 emulators are simple virtual machines that can run a variety of games. Thi
 ---
 ### References
 1. [Cowgod's Chip-8 Technical reference](http://devernay.free.fr/hacks/chip8/C8TECH10.HTM)
-2. [Chip-8 book](https://github.com/aquova/chip8-book)
